@@ -1,0 +1,894 @@
+/*
+ * 本文件的主体来自上游项目 CAPTCHA-automatic-recognition（anghunk，Apache-2.0），
+ * 文件末尾标注的部分为本项目新增。
+ */
+/* 确保所有样式都有命名空间前缀，避免与网站样式冲突 */
+.captcha-recognition-container {
+  /* 通用重置样式 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol" !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  color: #333 !important;
+  box-sizing: border-box !important;
+
+  & *,
+  & *::before,
+  & *::after {
+    box-sizing: border-box !important;
+    font-family: inherit !important;
+  }
+
+  & input,
+  & textarea,
+  & select,
+  & button {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+}
+
+.captcha-recognition-icon {
+  display: inline-block !important;
+  width: 20px !important;
+  height: 20px !important;
+  vertical-align: middle !important;
+  margin-left: 5px !important;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>') !important;
+  background-size: contain !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 999 !important;
+  opacity: 0.7 !important;
+  transition: opacity 0.2s !important;
+}
+
+.captcha-recognition-icon:hover {
+  opacity: 1 !important;
+}
+
+.input-group-append {
+  position: relative !important;
+}
+
+.input-group-append .captcha-recognition-icon {
+  position: absolute !important;
+  left: 100% !important;
+}
+
+.captcha-recognition-loading {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>') !important;
+  animation: captcha-spin 1s linear infinite !important;
+}
+
+@keyframes captcha-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.captcha-recognition-success {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>') !important;
+}
+
+.captcha-recognition-error {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>') !important;
+}
+
+/* 当设置面板打开时，禁止 body 滚动 */
+body.captcha-settings-open {
+  overflow: hidden !important;
+}
+
+/* 遮罩层样式 */
+.captcha-settings-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  z-index: 2147483646 !important;
+  /* 比设置面板低一级 */
+}
+
+/* 设置面板样式 - 右侧固定 */
+.captcha-settings-modal {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-width: 400px !important;
+  height: 100vh !important;
+  padding-bottom: 60px !important;
+  background-color: white !important;
+  z-index: 2147483647 !important;
+  text-align: left !important;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1) !important;
+  transform: translateX(100%) !important;
+  transition: transform 0.3s linear !important;
+  /* 最高的 z-index 值，确保在页面最上层 */
+}
+
+/* 设置面板显示状态 */
+.captcha-settings-modal.show {
+  transform: translateX(0) !important;
+}
+
+.captcha-settings-content {
+  background-color: transparent !important;
+  color: #333 !important;
+  padding: 20px !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow-y: scroll !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding-right: 15px !important;
+}
+
+/* 自定义滚动条 - 所有元素统一风格 */
+.captcha-settings-content::-webkit-scrollbar,
+.settings-card::-webkit-scrollbar,
+.domain-textarea::-webkit-scrollbar,
+.captcha-settings-content textarea::-webkit-scrollbar {
+  width: 4px !important;
+  height: 8px !important;
+}
+
+.captcha-settings-content::-webkit-scrollbar-track,
+.settings-card::-webkit-scrollbar-track,
+.domain-textarea::-webkit-scrollbar-track,
+.captcha-settings-content textarea::-webkit-scrollbar-track {
+  background: #f1f1f1 !important;
+  border-radius: 4px !important;
+}
+
+.captcha-settings-content::-webkit-scrollbar-thumb,
+.settings-card::-webkit-scrollbar-thumb,
+.domain-textarea::-webkit-scrollbar-thumb,
+.captcha-settings-content textarea::-webkit-scrollbar-thumb {
+  background: #ccc !important;
+  /* 统一使用主题蓝色 */
+  border-radius: 4px !important;
+}
+
+.captcha-settings-content h3 {
+  margin-top: 0 !important;
+  color: #333 !important;
+  font-size: 18px !important;
+  margin-bottom: 16px !important;
+  text-align: center !important;
+  font-weight: bold !important;
+}
+
+.captcha-settings-content h3 span {
+  font-size: 14px !important;
+}
+
+.captcha-settings-item {
+  margin-bottom: 12px !important;
+  display: flex !important;
+  flex-direction: column;
+}
+
+.captcha-settings-item label {
+  display: block !important;
+  margin-bottom: 4px !important;
+  color: #555 !important;
+  font-size: 14px !important;
+}
+
+.captcha-settings-item input[type="text"],
+.captcha-settings-item select,
+.captcha-settings-item textarea {
+  width: 100% !important;
+  padding: 0 8px !important;
+  border: 1px solid #ddd !important;
+  background: none !important;
+  border-radius: 4px !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  color: #333 !important;
+  margin: 0 !important;
+}
+
+.captcha-settings-item input[type="text"],
+.captcha-settings-item select {
+  height: 33px !important;
+}
+
+.captcha-settings-item textarea {
+  resize: vertical !important;
+  min-height: 80px !important;
+}
+
+.captcha-settings-item small {
+  font-size: 12px !important;
+  color: #777 !important;
+  display: block !important;
+  margin-top: 4px !important;
+  word-break: break-all !important;
+}
+
+/* 带按钮的 textarea 容器 */
+.textarea-with-button {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 使用默认提示词按钮 */
+.use-default-prompt {
+  position: absolute !important;
+  top: 5px !important;
+  right: 5px !important;
+  background-color: #f1f1f1 !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  color: #333 !important;
+  transition: background-color 0.2s !important;
+}
+
+.use-default-prompt:hover {
+  background-color: #e4e4e4 !important;
+}
+
+/* 设置按钮区域 */
+.captcha-settings-buttons {
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin-top: 20px !important;
+  gap: 10px !important;
+  position: absolute !important;
+  background: #fff !important;
+  width: 100%;
+  bottom: 0 !important;
+  left: 0 !important;
+  z-index: 10 !important;
+  padding: 10px 15px;
+  box-shadow: 1px 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.captcha-settings-buttons button {
+  padding: 8px 16px !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  transition: background-color 0.2s !important;
+}
+
+.captcha-settings-buttons button:first-child {
+  background-color: #1a73e8 !important;
+  color: white !important;
+}
+
+.captcha-settings-buttons button:first-child:hover {
+  background-color: #1557b0 !important;
+}
+
+.captcha-settings-buttons button:last-child {
+  background-color: #f1f1f1 !important;
+  color: #333 !important;
+}
+
+.captcha-settings-buttons button:last-child:hover {
+  background-color: #e4e4e4 !important;
+}
+
+.dev-settings-button {
+  width: 50px !important;
+  height: 50px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  background-color: #fff !important;
+  color: white !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  z-index: 9999 !important;
+  font-size: 14px !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
+  transition: background-color 0.2s !important;
+
+  svg {
+    color: #1557b0;
+  }
+}
+
+.dev-settings-button:hover {
+  opacity: 0.9;
+}
+
+/* Toast 提示样式 */
+#captcha-toast-container {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  pointer-events: none !important;
+  text-align: left !important;
+}
+
+.captcha-toast {
+  width: 280px !important;
+  padding: 12px 16px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  color: white !important;
+  font-size: 14px !important;
+  opacity: 0 !important;
+  transform: translateY(-20px) !important;
+  transition: all 0.3s ease !important;
+  pointer-events: auto !important;
+  word-break: break-word !important;
+  text-align: left !important;
+}
+
+.captcha-toast-show {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+.captcha-toast-hide {
+  opacity: 0 !important;
+  transform: translateY(-20px) !important;
+}
+
+.captcha-toast-info {
+  background-color: #1a73e8 !important;
+}
+
+.captcha-toast-success {
+  background-color: #4caf50 !important;
+}
+
+.captcha-toast-error {
+  background-color: #f44336 !important;
+}
+
+/* 带按钮的输入框容器 */
+.input-with-button {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.input-with-button input {
+  flex: 1 !important;
+}
+
+/* API 测试按钮 */
+.test-api-button {
+  background-color: #1a73e8 !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s, color 0.2s !important;
+  min-width: 80px !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  height: 33px !important;
+  margin-left: 10px !important;
+}
+
+/* 设置中的提示框 */
+.captcha-settings-tip {
+  margin: 16px 0 !important;
+  padding: 12px !important;
+  background-color: #f8f9fa !important;
+  border-left: 4px solid #1a73e8 !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+  color: #333 !important;
+}
+
+.captcha-settings-tip p {
+  margin: 0 0 8px 0 !important;
+}
+
+.captcha-settings-tip ol {
+  margin: 8px 0 0 0 !important;
+  padding-left: 24px !important;
+}
+
+.captcha-settings-tip li {
+  margin-bottom: 4px !important;
+}
+
+.test-api-button:hover {
+  background-color: #1557b0 !important;
+}
+
+/* 加载中状态 */
+.test-api-button.test-loading {
+  background-color: #f1f1f1 !important;
+  color: #666 !important;
+  position: relative !important;
+}
+
+.test-api-button.test-loading::after {
+  content: '' !important;
+  position: absolute !important;
+  width: 12px !important;
+  height: 12px !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%);
+  border: 2px solid #666 !important;
+  border-radius: 50% !important;
+  border-top-color: transparent !important;
+  animation: captcha-spin-transform 1s linear infinite !important;
+}
+
+/* 需要添加额外的关键帧动画，因为位置不同 */
+@keyframes captcha-spin-transform {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* 成功状态 */
+.test-api-button.test-success {
+  background-color: #4caf50 !important;
+  color: white !important;
+}
+
+/* 错误状态 */
+.test-api-button.test-error {
+  background-color: #f44336 !important;
+  color: white !important;
+}
+
+// 兼容网站样式
+img[style="z-index: 2; position: absolute; bottom: -11px; left: 206px; width: 88px; height: 40px;"]+.captcha-recognition-icon {
+  position: absolute !important;
+  left: 270px !important;
+}
+
+.authcode.co>a:nth-child(2)>#authImage+.captcha-recognition-icon {
+  display: none !important;
+}
+
+#yzCode {
+  position: relative;
+}
+
+#yzCode>.captcha-recognition-icon {
+  position: absolute !important;
+  right: 0 !important;
+}
+
+.code-plane .img-code+.captcha-recognition-icon {
+  position: absolute !important;
+}
+
+/* 设置导航栏样式 */
+.settings-nav {
+  display: flex !important;
+  border-bottom: 1px solid #eee !important;
+  margin-bottom: 20px !important;
+  padding-bottom: 2px !important;
+}
+
+.settings-nav::-webkit-scrollbar {
+  display: none !important;
+  /* Chrome, Safari, Opera */
+}
+
+.settings-nav-item {
+  padding: 10px 15px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  color: #666 !important;
+  position: relative !important;
+  transition: all 0.3s !important;
+  user-select: none !important;
+  white-space: nowrap !important;
+}
+
+.settings-nav-item:hover {
+  color: #1a73e8 !important;
+}
+
+.settings-nav-item.active {
+  color: #1a73e8 !important;
+}
+
+.settings-nav-item.active::after {
+  content: '' !important;
+  position: absolute !important;
+  bottom: -2px !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 2px !important;
+  background-color: #1a73e8 !important;
+  border-radius: 2px !important;
+}
+
+/* 设置内容区域 */
+.settings-content {
+  /* 增加最小高度 */
+  flex: 1 !important;
+  position: relative !important;
+}
+
+/* 设置内容标签页 */
+.settings-content-tab {
+  animation: captcha-fadeIn 0.3s ease !important;
+  width: 100% !important;
+}
+
+@keyframes captcha-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 设置卡片样式 */
+.settings-card {
+  background-color: #f9f9f9 !important;
+  border-radius: 8px !important;
+  padding: 15px !important;
+  margin-bottom: 15px !important;
+  border: 1px solid #eee !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow-y: auto !important;
+  /* 添加滚动条，防止内容过多时溢出 */
+  /* 设置最大高度，与内容区域最小高度一致 */
+}
+
+.settings-card-title {
+  font-weight: bold !important;
+  margin-bottom: 12px !important;
+  color: #333 !important;
+  font-size: 15px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.settings-card-title .api-type {
+  color: #1a73e8 !important;
+}
+
+.settings-section {
+  margin-bottom: 20px !important;
+}
+
+.settings-section-title {
+  font-weight: bold !important;
+  margin-bottom: 10px !important;
+  color: #333 !important;
+  font-size: 15px !important;
+  border-bottom: 1px solid #eee !important;
+  padding-bottom: 5px !important;
+}
+
+.advanced-settings-warning {
+  font-size: 12px !important;
+  color: #ff4d4f !important;
+  margin-bottom: 10px !important;
+  font-weight: bold !important;
+  padding: 8px !important;
+  background-color: #fff2f0 !important;
+  border-radius: 4px !important;
+  border: 1px solid #ffccc7 !important;
+}
+
+.tutorial-link {
+  font-size: 12px !important;
+  color: #1890ff !important;
+  margin-left: 8px !important;
+  text-decoration: none !important;
+  font-weight: normal !important;
+}
+
+.tutorial-link:hover {
+  text-decoration: underline !important;
+}
+
+.custom-selectors {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+.selector-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.selector-item input {
+  flex: 1 !important;
+}
+
+.remove-selector {
+  background-color: #ff4d4f !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.add-selector {
+  margin-top: 8px !important;
+  background-color: #1890ff !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 4px 12px !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+  align-self: flex-start !important;
+}
+
+.add-selector:hover {
+  background-color: #40a9ff !important;
+}
+
+.remove-selector:hover {
+  background-color: #ff7875 !important;
+}
+
+.domain-textarea {
+  width: 100% !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  padding: 8px !important;
+  resize: vertical !important;
+  font-family: monospace !important;
+  font-size: 14px !important;
+}
+
+.reload-rules-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px 12px !important;
+  height: 34px !important;
+  font-size: 14px !important;
+  border-radius: 4px !important;
+  border: 1px solid #ddd !important;
+  background-color: #f7f7f7 !important;
+  cursor: pointer !important;
+  transition: all 0.3s !important;
+  min-width: 120px !important;
+
+  &:hover {
+    background-color: #e7e7e7 !important;
+  }
+
+  &.test-loading {
+    background-color: #f5f5f5 !important;
+    position: relative !important;
+    color: transparent !important;
+
+    &::after {
+      content: '' !important;
+      width: 16px !important;
+      height: 16px !important;
+      border: 2px solid #666 !important;
+      border-top-color: transparent !important;
+      border-radius: 50% !important;
+      position: absolute !important;
+      left: 50% !important;
+      top: 50% !important;
+      margin-left: -8px !important;
+      margin-top: -8px !important;
+      animation: captcha-spin 1s linear infinite !important;
+    }
+  }
+
+  &.test-success {
+    background-color: #eaf7ea !important;
+    border-color: #c3e6c3 !important;
+    color: #2a862a !important;
+  }
+
+  &.test-error {
+    background-color: #fce7e7 !important;
+    border-color: #f5c2c2 !important;
+    color: #d63030 !important;
+  }
+}
+
+.rules-management {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+.rules-url-input {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+
+  input {
+    width: 100% !important;
+    padding: 8px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    font-size: 14px !important;
+  }
+
+  small {
+    color: #666 !important;
+    font-size: 12px !important;
+  }
+}
+
+@media(max-width:768px) {
+  .settings-nav-item {
+    padding: 10px 10px !important;
+  }
+}
+/* ------------------------------------------------------------------ */
+/* 以下为本项目在上游样式基础上新增的部分                               */
+/* ------------------------------------------------------------------ */
+
+/* 一个标签页里可以放多张卡片，卡片按内容高度排列，由外层统一滚动 */
+.settings-content-tab .settings-card {
+  height: auto !important;
+  overflow: visible !important;
+  flex-shrink: 0 !important;
+}
+
+/* API Key 默认以密码框显示，样式与文本框保持一致 */
+.captcha-settings-item input[type="password"] {
+  width: 100% !important;
+  height: 33px !important;
+  padding: 0 8px !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  color: #333 !important;
+  margin: 0 !important;
+}
+
+/* 输入框右侧的次要按钮（显示/隐藏、获取列表） */
+.side-button {
+  flex-shrink: 0 !important;
+  position: relative !important;
+  height: 33px !important;
+  min-width: 76px !important;
+  margin-left: 8px !important;
+  padding: 0 10px !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  background-color: #f7f7f7 !important;
+  color: #333 !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s !important;
+
+  &:hover {
+    background-color: #e7e7e7 !important;
+  }
+
+  &.test-loading::after {
+    content: '' !important;
+    position: absolute !important;
+    width: 12px !important;
+    height: 12px !important;
+    left: 50% !important;
+    top: 50% !important;
+    border: 2px solid #666 !important;
+    border-radius: 50% !important;
+    border-top-color: transparent !important;
+    animation: captcha-spin-transform 1s linear infinite !important;
+  }
+
+  &.test-success {
+    border-color: #4caf50 !important;
+    color: #2e7d32 !important;
+  }
+
+  &.test-error {
+    border-color: #f44336 !important;
+    color: #c62828 !important;
+  }
+}
+
+.model-picker {
+  margin-top: 6px !important;
+}
+
+.test-api-button.full-width {
+  width: 100% !important;
+  margin-left: 0 !important;
+}
+
+.provider-note {
+  margin-bottom: 12px !important;
+  padding: 8px 10px !important;
+  border-radius: 4px !important;
+  background-color: #eef4fe !important;
+  color: #445 !important;
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+}
+
+.captcha-settings-item small.status-success {
+  color: #2e7d32 !important;
+}
+
+.captcha-settings-item small.status-error,
+.rules-management small.status-error {
+  color: #c62828 !important;
+}
+
+/* 复选框行：整行可点击 */
+.check-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 0 12px 0 !important;
+  color: #555 !important;
+  font-size: 14px !important;
+  cursor: pointer !important;
+
+  input[type="checkbox"] {
+    width: auto !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+.add-selector:disabled {
+  background-color: #bbb !important;
+  cursor: default !important;
+}
+
+.dev-settings-button {
+  color: #1557b0 !important;
+  font-size: 24px !important;
+}
+
+.captcha-toast-warning {
+  background-color: #ed8a19 !important;
+}

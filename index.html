@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>验证码识别助手 · 开发测试页</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 420px;
+				margin: 60px auto;
+				color: #333;
+			}
+			.row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				margin: 12px 0;
+			}
+			input {
+				height: 32px;
+				padding: 0 8px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<h3>开发测试页</h3>
+		<p>这里的验证码是在本地随机画出来的，用来在开发时试验脚本。</p>
+		<form onsubmit="return false">
+			<div class="row"><input name="username" placeholder="用户名" /></div>
+			<div class="row">
+				<input name="captcha" placeholder="请输入验证码" />
+				<img id="captcha" alt="验证码" title="点击换一张" style="cursor: pointer" />
+			</div>
+			<div class="row"><small id="answer"></small></div>
+		</form>
+
+		<script>
+			const img = document.getElementById('captcha');
+			function draw() {
+				const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+				const text = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+				const canvas = document.createElement('canvas');
+				canvas.width = 120;
+				canvas.height = 40;
+				const ctx = canvas.getContext('2d');
+				ctx.fillStyle = '#f3f4f6';
+				ctx.fillRect(0, 0, 120, 40);
+				for (let i = 0; i < 4; i++) {
+					ctx.strokeStyle = `hsl(${Math.random() * 360} 50% 70%)`;
+					ctx.beginPath();
+					ctx.moveTo(Math.random() * 120, Math.random() * 40);
+					ctx.lineTo(Math.random() * 120, Math.random() * 40);
+					ctx.stroke();
+				}
+				ctx.font = 'bold 26px monospace';
+				ctx.textBaseline = 'middle';
+				[...text].forEach((ch, i) => {
+					ctx.save();
+					ctx.translate(16 + i * 25, 21);
+					ctx.rotate((Math.random() - 0.5) * 0.5);
+					ctx.fillStyle = `hsl(${Math.random() * 360} 60% 35%)`;
+					ctx.fillText(ch, 0, 0);
+					ctx.restore();
+				});
+				img.src = canvas.toDataURL('image/png');
+				document.getElementById('answer').textContent = '正确答案：' + text;
+			}
+			img.addEventListener('click', draw);
+			draw();
+		</script>
+	</body>
+</html>

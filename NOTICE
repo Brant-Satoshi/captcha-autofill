@@ -1,0 +1,28 @@
+验证码识别助手 (captcha-autofill)
+
+This project is a derivative work of "CAPTCHA-automatic-recognition" by anghunk,
+https://github.com/anghunk/UserScript/tree/main/CAPTCHA-automatic-recognition,
+licensed under the Apache License, Version 2.0.
+
+Modifications made in this project (2026):
+
+- The source was restructured from a single Vue component into TypeScript modules,
+  and the user interface was rewritten in React.
+- Provider handling was rewritten around a provider table, and support was added
+  for Anthropic Claude, local Ollama, and custom OpenAI-compatible endpoints.
+- Model listing was added to the settings panel.
+- Detection, auto-recognition and input-filling behaviour was changed as described
+  in README.md.
+- The script name, author, namespace and icon were changed.
+
+Files carried over from the original project:
+
+- rules.json (unchanged)
+- src/prompts.ts (the default prompt text, unchanged)
+- src/assets/app.less (original styles, with additions marked at the end of the file)
+- LICENSE (unchanged)
+
+Third-party software bundled into the built userscript:
+
+- React and React DOM, Copyright (c) Meta Platforms, Inc. and affiliates, MIT License.
+- Scheduler, Copyright (c) Meta Platforms, Inc. and affiliates, MIT License.
