@@ -15,7 +15,7 @@ export const META = {
 	 */
 	namespace: 'brant.captcha-autofill',
 	/** 你的 GitHub 仓库，格式为 owner/repo。留空表示尚未托管 */
-	repo: '',
+	repo: 'Brant-Satoshi/captcha-autofill',
 	/** 仓库默认分支 */
 	branch: 'main',
 	/** 上游项目，保留用于署名 */
