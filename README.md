@@ -31,6 +31,7 @@ npm run build
 | Google Gemini | Key 通过请求头发送，不出现在 URL 里 |
 | 阿里云通义千问 | DashScope 的 OpenAI 兼容接口 |
 | Anthropic Claude | Messages API |
+| OpenRouter | OpenAI 兼容接口，一个 Key 使用多家模型 |
 | Ollama（本地） | 默认 `http://localhost:11434`，不需要 Key，图片不离开本机 |
 | 自定义（OpenAI 兼容） | 任何兼容 Chat Completions 的接口，Key 可选 |
 

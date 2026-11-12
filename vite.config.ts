@@ -39,6 +39,7 @@ export default defineConfig({
 					'generativelanguage.googleapis.com',
 					'dashscope.aliyuncs.com',
 					'api.anthropic.com',
+					'openrouter.ai',
 					'raw.githubusercontent.com',
 					'localhost',
 					'127.0.0.1',

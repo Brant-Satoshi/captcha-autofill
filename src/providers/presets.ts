@@ -39,6 +39,15 @@ export const PROVIDERS = [
 		modelPlaceholder: 'claude-haiku-5-5',
 	},
 	{
+		id: 'openrouter',
+		label: 'OpenRouter',
+		protocol: openaiProtocol,
+		defaultUrl: 'https://openrouter.ai/api/v1/chat/completions',
+		requiresKey: true,
+		keyPlaceholder: 'sk-or-...',
+		note: '模型列表里也有不支持图片的模型，请选择支持图片输入的模型。',
+	},
+	{
 		id: 'ollama',
 		label: 'Ollama（本地）',
 		protocol: openaiProtocol,

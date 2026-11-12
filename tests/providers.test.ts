@@ -74,6 +74,12 @@ describe('OpenAI 兼容协议', () => {
 		expect(openaiProtocol.parseText({})).toBe('');
 	});
 
+	it('OpenRouter 的对话和模型列表地址', () => {
+		const def = getProvider('openrouter');
+		expect(openaiProtocol.buildRecognize(def, cfg(), 'P', IMG).url).toBe('https://openrouter.ai/api/v1/chat/completions');
+		expect(openaiProtocol.buildListModels(def, cfg()).url).toBe('https://openrouter.ai/api/v1/models');
+	});
+
 	it('模型列表地址由对话地址推断', () => {
 		const req = openaiProtocol.buildListModels(getProvider('custom'), cfg({ apiUrl: 'https://x.com/v1' }));
 		expect(req.url).toBe('https://x.com/v1/models');
