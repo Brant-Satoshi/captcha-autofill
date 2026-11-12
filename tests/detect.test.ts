@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { findCaptchaElements, findInputFor, resolveSelectors } from '../src/core/detect';
+import { findCaptchaElements, findInputFor, hasPlausibleSize, resolveSelectors } from '../src/core/detect';
 import { fillInput } from '../src/core/fill';
 import { BUILTIN_RULES, sanitizeRules } from '../src/core/rules';
 import { defaultSettings, normalizeSettings } from '../src/core/settings';
@@ -10,29 +10,90 @@ beforeEach(() => {
 	document.body.innerHTML = '';
 });
 
+/** happy-dom 不做布局，测试里手动指定元素的显示尺寸 */
+function size<T extends Element>(el: T, width: number, height: number): T {
+	el.getBoundingClientRect = () => new DOMRect(0, 0, width, height);
+	return el;
+}
+
+function img(attrs: Record<string, string>, width = 120, height = 40): HTMLImageElement {
+	const el = document.createElement('img');
+	for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+	document.body.append(el);
+	return size(el, width, height);
+}
+
 describe('resolveSelectors', () => {
-	it('合并内置、自定义和命中的规则，并去重', () => {
+	it('内置选择器和全站规则归为通用，自定义选择器和站点规则归为可信', () => {
 		const settings = defaultSettings();
-		settings.customCaptchaSelectors = [' img.mine ', '', 'img[src*="captcha"]'];
+		settings.customCaptchaSelectors = [' img.mine ', ''];
 		const selectors = resolveSelectors(settings, BUILTIN_RULES, loc);
-		expect(selectors.captcha).toContain('img.mine');
-		expect(selectors.captcha).toContain("img[src*='mod=seccode']");
+		expect(selectors.trusted).toEqual(['img.mine', "img[src*='mod=seccode']"]);
+		expect(selectors.generic).toContain('img[src*="captcha"]');
+		expect(selectors.generic).toContain("img[alt*='CAPTCHA']");
 		expect(selectors.input).toContain("input[name='seccodeverify']");
 		// 其他网站的规则不生效
-		expect(selectors.captcha).not.toContain("img[id='vCodeImg']");
-		expect(selectors.captcha.filter((s) => s === 'img[src*="captcha"]')).toHaveLength(1);
+		expect([...selectors.generic, ...selectors.trusted]).not.toContain("img[id='vCodeImg']");
+		expect(new Set(selectors.generic).size).toBe(selectors.generic.length);
 	});
 });
 
 describe('findCaptchaElements', () => {
-	it('只返回有 src 的 img 和 canvas，同一元素不重复', () => {
-		document.body.innerHTML = `
-			<img id="a" src="/captcha.png" alt="验证码">
-			<img id="b" alt="验证码">
-			<div class="validate-code"><canvas id="c"></canvas></div>
-			<span title="验证码">x</span>`;
-		const found = findCaptchaElements(['img[src*="captcha"]', 'img[alt*="验证码"]', '.validate-code canvas', 'span', 'bad[[']);
-		expect(found.map((el) => el.id)).toEqual(['a', 'c']);
+	const generic = ['img[src*="captcha"]', 'img[alt*="验证码"]', "img[alt*='CAPTCHA']", 'span', 'bad[['];
+	const find = (trusted: string[] = [], host = 'example.com') =>
+		findCaptchaElements({ generic, trusted }, document, host).map((el) => el.id);
+
+	it('通用选择器只认尺寸像验证码的图片', () => {
+		img({ id: 'ok', src: 'https://example.com/captcha.png' });
+		img({ id: 'button', src: 'https://example.com/captcha-reload.png', alt: 'Change the CAPTCHA code' }, 22, 22);
+		img({ id: 'hidden', src: 'https://example.com/captcha.png?2' }, 0, 0);
+		img({ id: 'banner', src: 'https://example.com/captcha-banner.jpg' }, 800, 400);
+		img({ id: 'tall', src: 'https://example.com/captcha-tall.jpg' }, 40, 120);
+		img({ id: 'nosrc', alt: '验证码' });
+		document.body.append(document.createElement('span'));
+		expect(find()).toEqual(['ok']);
+	});
+
+	it('同一元素命中多个选择器只返回一次', () => {
+		img({ id: 'a', src: 'https://example.com/captcha.png', alt: '验证码' });
+		expect(find()).toEqual(['a']);
+	});
+
+	it('可信选择器命中即认定，不看尺寸，也支持 canvas', () => {
+		img({ id: 'small', class: 'mine', src: 'https://example.com/code.png' }, 30, 12);
+		const canvas = document.createElement('canvas');
+		canvas.id = 'cv';
+		document.body.append(canvas);
+		expect(find(['img.mine', 'canvas'])).toEqual(['small', 'cv']);
+	});
+
+	it('域名本身带关键字的网站上，站内图片不因域名而命中', () => {
+		img({ id: 'logo', src: 'https://captcha.com/images/logo.jpg' });
+		img({ id: 'real', src: 'https://captcha.com/forms/captcha-endpoint.php?get=image' });
+		img({ id: 'byAlt', src: 'https://captcha.com/images/code.jpg', alt: 'Retype the CAPTCHA code' });
+		img({ id: 'dataUrl', src: 'data:image/png;base64,AAAAcaptchaAAAA' });
+		expect(find([], 'captcha.com')).toEqual(['real', 'byAlt']);
+	});
+
+	it('图片来自别的带关键字的域名时照常命中', () => {
+		img({ id: 'cdn', src: 'https://captcha.example-cdn.com/a/b.png' });
+		expect(find([], 'example.com')).toEqual(['cdn']);
+	});
+});
+
+describe('hasPlausibleSize', () => {
+	it.each([
+		[120, 40, true],
+		[60, 20, true],
+		[250, 50, true],
+		[22, 22, false],
+		[32, 32, false],
+		[0, 0, false],
+		[700, 100, false],
+		[300, 300, false],
+		[50, 80, false],
+	])('%i×%i -> %s', (width, height, expected) => {
+		expect(hasPlausibleSize(size(document.createElement('img'), width, height))).toBe(expected);
 	});
 });
 

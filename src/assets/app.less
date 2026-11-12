@@ -892,3 +892,17 @@ img[style="z-index: 2; position: absolute; bottom: -11px; left: 206px; width: 88
 .captcha-toast-warning {
   background-color: #ed8a19 !important;
 }
+
+/* 图标叠在验证码图片右上角（容器放不下图标时使用），位置由脚本通过外边距设置 */
+.captcha-recognition-icon.captcha-recognition-overlay {
+  position: absolute !important;
+  margin: 0 !important;
+  border-radius: 50% !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9) !important;
+  opacity: 0.85 !important;
+
+  &:hover {
+    opacity: 1 !important;
+  }
+}

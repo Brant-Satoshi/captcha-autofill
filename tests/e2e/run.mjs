@@ -55,6 +55,21 @@ const pageHtml = `<!doctype html><meta charset="utf-8"><title>e2e</title>
 	<p><input id="pwd" type="password" placeholder="密码"></p>
 	<p><input id="code" name="captcha" placeholder="请输入验证码"> <img id="img" src="/captcha.png?s=1" alt="验证码"></p>
 </form>
+<!-- 干扰项：地址或说明里带 captcha 字样，但不是验证码 -->
+<a href="#"><img id="reload" src="/captcha.png?s=7" width="22" height="22" alt="Change the CAPTCHA code"></a>
+<img id="hidden" src="/captcha.png?s=8" style="display:none" alt="CAPTCHA">
+<img id="banner" src="/captcha.png?s=9" width="800" height="300" alt="CAPTCHA banner">
+</body>`;
+
+/** 验证码被一个和它一样大的容器包住，紧跟其后的图标会被挤到下一行 */
+const tightHtml = `<!doctype html><meta charset="utf-8"><title>e2e tight</title>
+<body style="font-family:sans-serif;padding:40px">
+<form onsubmit="return false">
+	<div id="wrap" style="width:150px;height:40px">
+		<div id="box" style="display:inline-block;width:120px;height:40px"><img id="img" src="/captcha.png?s=1" width="120" height="40" alt="验证码"></div>
+	</div>
+	<p><input id="code" name="captcha"></p>
+</form>
 </body>`;
 
 const server = createServer((req, res) => {
@@ -64,7 +79,7 @@ const server = createServer((req, res) => {
 		res.end(noisePng(Number(url.searchParams.get('s')) || 1));
 	} else {
 		res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-		res.end(pageHtml);
+		res.end(url.pathname === '/tight' ? tightHtml : pageHtml);
 	}
 });
 await new Promise((done) => server.listen(0, '127.0.0.1', done));
@@ -118,13 +133,13 @@ const browser = await chromium.launch(
 	process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }
 );
 
-async function open(settings) {
+async function open(settings, path = '/') {
 	const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
 	const page = await context.newPage();
 	const errors = [];
 	page.on('pageerror', (error) => errors.push(error.message));
 	await page.addInitScript(installMocks, settings ? { settings: JSON.stringify(settings) } : {});
-	await page.goto(origin);
+	await page.goto(origin + path);
 	// 脚本自带全部依赖，直接注入即可
 	await page.addScriptTag({ content: userscript });
 	return { page, errors, close: () => context.close() };
@@ -192,6 +207,65 @@ await scenario('自动识别：加载后自动回填，换图后重新识别，�
 		'第二次应该发送新图片'
 	);
 	assert.deepEqual(t.errors, []);
+	await t.close();
+});
+
+await scenario('干扰项：小按钮、隐藏图片和大图不挂图标', async () => {
+	const t = await open();
+	await t.page.locator('.captcha-recognition-icon').first().waitFor({ timeout: 5000 });
+	await t.page.waitForTimeout(1200);
+	const beside = await t.page.evaluate(() =>
+		[...document.querySelectorAll('.captcha-recognition-icon')].map((icon) => icon.previousElementSibling?.id)
+	);
+	assert.deepEqual(beside, ['img'], '只有真正的验证码旁边应该有图标');
+	await t.close();
+});
+
+await scenario('容器放不下图标时：图标叠在验证码右上角，不盖住输入框', async () => {
+	const t = await open(
+		{ provider: 'claude', providers: providers({ claude: { apiKey: 'sk-test', apiUrl: '', model: 'claude-test' } }) },
+		'/tight'
+	);
+	const icon = t.page.locator('.captcha-recognition-icon');
+	await icon.waitFor({ timeout: 5000 });
+	await t.page.waitForTimeout(700);
+	const rects = await t.page.evaluate(() => {
+		const r = (el) => el.getBoundingClientRect().toJSON();
+		return {
+			img: r(document.getElementById('img')),
+			icon: r(document.querySelector('.captcha-recognition-icon')),
+			input: r(document.getElementById('code')),
+			wrap: r(document.getElementById('wrap')),
+		};
+	});
+	assert.ok(await icon.evaluate((el) => el.classList.contains('captcha-recognition-overlay')), '应该切换为叠放');
+	assert.ok(rects.icon.top >= rects.img.top && rects.icon.bottom <= rects.img.bottom, '图标应该在图片的高度范围内');
+	assert.ok(rects.icon.right <= rects.img.right && rects.icon.left > rects.img.left + 60, '图标应该在图片右侧边缘内');
+	assert.ok(rects.icon.bottom <= rects.input.top, '图标不应该盖住输入框');
+	assert.equal(rects.wrap.height, 40, '不应该撑开页面原有的布局');
+	await shot(t.page, 'tight-overlay');
+	await icon.click();
+	await t.page.waitForFunction(() => document.getElementById('code').value === '7Kq2');
+	assert.deepEqual(t.errors, []);
+	await t.close();
+});
+
+await scenario('页面重新渲染验证码：旧图标被清理，不会越积越多', async () => {
+	const t = await open();
+	await t.page.locator('#img + .captcha-recognition-icon').waitFor({ timeout: 5000 });
+	for (let round = 2; round <= 4; round++) {
+		await t.page.evaluate((seed) => {
+			const old = document.getElementById('img');
+			const next = document.createElement('img');
+			next.id = 'img';
+			next.alt = '验证码';
+			next.src = '/captcha.png?s=' + seed;
+			old.replaceWith(next);
+		}, round);
+		await t.page.locator('#img + .captcha-recognition-icon').waitFor({ timeout: 5000 });
+		await t.page.waitForTimeout(700);
+		assert.equal(await t.page.locator('.captcha-recognition-icon').count(), 1, `第 ${round} 次渲染后应该只有一个图标`);
+	}
 	await t.close();
 });
 

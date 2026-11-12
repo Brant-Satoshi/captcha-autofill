@@ -1,6 +1,6 @@
 {
   "name": "captcha-autofill",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "用视觉大模型识别网页图片验证码并自动填入输入框的用户脚本",
   "type": "module",

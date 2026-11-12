@@ -6,7 +6,7 @@ import { elementToBase64, whenImageReady } from './image';
 import { isDomainDisabled } from './pattern';
 import type { Rule } from './rules';
 import type { Settings } from './settings';
-import { placeIcon } from './siteFixes';
+import { adjustIcon, placeIcon } from './placement';
 import type { ToastType } from './toast';
 
 export interface ControllerDeps {
@@ -33,6 +33,8 @@ export class CaptchaController {
 	private icons = new WeakMap<Element, HTMLElement>();
 	/** 验证码元素 -> 上一次送去识别的图片，用来避免自动模式下重复识别同一张图 */
 	private lastImage = new WeakMap<Element, string>();
+	/** 已经挂了图标的验证码元素，用来在元素消失后清理图标 */
+	private tracked = new Set<CaptchaElement>();
 	/** 正在识别中的验证码元素 */
 	private busy = new WeakSet<Element>();
 	private started = false;
@@ -66,6 +68,24 @@ export class CaptchaController {
 		setInterval(() => this.scan(), SCAN_INTERVAL);
 	}
 
+	/**
+	 * 维护已有的图标：验证码元素被页面移除（例如单页应用重新渲染）或网站被禁用时，
+	 * 把留下的图标清掉；其余的检查一下位置。
+	 */
+	private maintain(): void {
+		const disabled = this.disabled;
+		for (const el of this.tracked) {
+			const icon = this.icons.get(el);
+			if (!disabled && el.isConnected && icon?.isConnected) {
+				adjustIcon(el, icon);
+				continue;
+			}
+			icon?.remove();
+			this.icons.delete(el);
+			this.tracked.delete(el);
+		}
+	}
+
 	/** 页面频繁变化时合并成一次扫描 */
 	private scheduleScan(): void {
 		if (this.scanQueued) return;
@@ -78,8 +98,9 @@ export class CaptchaController {
 
 	/** 找出还没有挂图标的验证码，挂上图标；开启自动识别时顺便识别 */
 	private scan(): void {
+		this.maintain();
 		if (this.disabled) return;
-		const fresh = findCaptchaElements(this.selectors().captcha).filter((el) => !this.icons.get(el)?.isConnected);
+		const fresh = findCaptchaElements(this.selectors()).filter((el) => !this.icons.get(el)?.isConnected);
 		if (!fresh.length) return;
 
 		fresh.forEach((el) => this.attachIcon(el));
@@ -105,6 +126,7 @@ export class CaptchaController {
 		});
 		placeIcon(captcha, icon);
 		this.icons.set(captcha, icon);
+		this.tracked.add(captcha);
 		return icon;
 	}
 

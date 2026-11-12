@@ -31,7 +31,10 @@ export const DEFAULT_INPUT_SELECTORS = [
 ];
 
 export interface SelectorSet {
-	captcha: string[];
+	/** 通用选择器（内置的和对所有网站生效的规则）：命中的元素还要通过合理性检查 */
+	generic: string[];
+	/** 用户自定义选择器和针对具体网站的规则：命中即认定为验证码 */
+	trusted: string[];
 	input: string[];
 }
 
@@ -39,15 +42,17 @@ const unique = (items: (string | undefined)[]) => [
 	...new Set(items.map((item) => (item ?? '').trim()).filter(Boolean)),
 ];
 
+/** 规则是否只针对某些网站（而不是对所有网站生效） */
+const isSiteSpecific = (rule: Rule) => !['', '*'].includes((rule.url_pattern ?? '').trim());
+
 /** 合并内置选择器、用户自定义选择器和当前页面命中的规则 */
 export function resolveSelectors(settings: Settings, rules: Rule[], loc: PageLocation): SelectorSet {
 	const matched = rulesForPage(rules, loc);
+	const siteRules = matched.filter(isSiteSpecific);
+	const globalRules = matched.filter((rule) => !isSiteSpecific(rule));
 	return {
-		captcha: unique([
-			...DEFAULT_CAPTCHA_SELECTORS,
-			...settings.customCaptchaSelectors,
-			...matched.map((rule) => rule.captcha_image_selector),
-		]),
+		generic: unique([...DEFAULT_CAPTCHA_SELECTORS, ...globalRules.map((rule) => rule.captcha_image_selector)]),
+		trusted: unique([...settings.customCaptchaSelectors, ...siteRules.map((rule) => rule.captcha_image_selector)]),
 		input: unique([
 			...DEFAULT_INPUT_SELECTORS,
 			...settings.customInputSelectors,
@@ -69,12 +74,65 @@ function queryAll(root: ParentNode, selector: string): Element[] {
 const isCaptchaElement = (el: Element): el is CaptchaElement =>
 	el.tagName === 'CANVAS' || (el.tagName === 'IMG' && !!(el as HTMLImageElement).src);
 
-/** 查找页面上的验证码元素（img 或 canvas），去重后按选择器顺序返回 */
-export function findCaptchaElements(selectors: string[], root: ParentNode = document): CaptchaElement[] {
+/** 通用选择器命中的元素，显示尺寸要落在这个范围内才算验证码（像素） */
+export const SIZE_LIMITS = { minWidth: 40, minHeight: 15, maxWidth: 600, maxHeight: 250 };
+
+/**
+ * 显示尺寸是否像一张验证码：排除不可见的图片、刷新和语音之类的小按钮、大幅配图，
+ * 以及竖长的图片（字符验证码都是横向的）。
+ */
+export function hasPlausibleSize(el: Element): boolean {
+	const { width, height } = el.getBoundingClientRect();
+	return (
+		width >= SIZE_LIMITS.minWidth &&
+		height >= SIZE_LIMITS.minHeight &&
+		width <= SIZE_LIMITS.maxWidth &&
+		height <= SIZE_LIMITS.maxHeight &&
+		width >= height
+	);
+}
+
+/** 形如 img[src*="关键字"] 的选择器 */
+const SRC_CONTAINS = /^img\[src\*=(["'])(.+)\1\]$/;
+
+/**
+ * 图片地址里的关键字是否真的说明它是验证码。
+ * 关键字出现在路径或参数里才算；只出现在域名里时，要求图片来自别的域名。
+ * 否则在域名本身带关键字的网站上（例如 captcha.com），站内所有图片都会命中。
+ */
+export function srcKeywordCounts(img: HTMLImageElement, keyword: string, pageHost: string): boolean {
+	let url: URL;
+	try {
+		url = new URL(img.src, location.href);
+	} catch {
+		return false;
+	}
+	if (url.protocol === 'data:') return false;
+	if ((url.pathname + url.search).includes(keyword)) return true;
+	return url.hostname !== pageHost && url.hostname.includes(keyword);
+}
+
+/**
+ * 查找页面上的验证码元素（img 或 canvas），去重后返回。
+ * trusted 选择器命中即认定；generic 选择器命中后还要通过尺寸和地址关键字检查。
+ */
+export function findCaptchaElements(
+	selectors: Pick<SelectorSet, 'generic' | 'trusted'>,
+	root: ParentNode = document,
+	pageHost: string = location.hostname
+): CaptchaElement[] {
 	const found = new Set<CaptchaElement>();
-	for (const selector of selectors) {
+	for (const selector of selectors.trusted) {
 		for (const el of queryAll(root, selector)) {
 			if (isCaptchaElement(el)) found.add(el);
+		}
+	}
+	for (const selector of selectors.generic) {
+		const keyword = SRC_CONTAINS.exec(selector)?.[2];
+		for (const el of queryAll(root, selector)) {
+			if (!isCaptchaElement(el) || found.has(el)) continue;
+			if (keyword && el instanceof HTMLImageElement && !srcKeywordCounts(el, keyword, pageHost)) continue;
+			if (hasPlausibleSize(el)) found.add(el);
 		}
 	}
 	return [...found];
