@@ -7,6 +7,7 @@
  * 需要本机装有 Chrome；可用环境变量 CHROME_PATH 指定路径。
  */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
@@ -16,6 +17,21 @@ import { chromium } from 'playwright-core';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const userscript = readFileSync(resolve(root, 'dist/captcha-autofill.user.js'), 'utf8');
+
+/**
+ * 脚本头部 @require 的依赖（React、React DOM）。测试不访问网络，按地址从 node_modules 读取同一个文件，
+ * 并核对地址里的版本和 sha256，保证脚本管理器从 CDN 下载到的就是这些文件。
+ */
+const requiredScripts = [...userscript.matchAll(/^\/\/ @require\s+(\S+)$/gm)].map(([, url]) => {
+	const { pathname, hash } = new URL(url);
+	const [, name, version, file] = pathname.match(/^\/((?:@[^/]+\/)?[^/]+)\/([^/]+)\/files\/(.+)$/);
+	const pkgDir = resolve(root, 'node_modules', name);
+	assert.equal(JSON.parse(readFileSync(resolve(pkgDir, 'package.json'), 'utf8')).version, version, `${url} 的版本与 node_modules 不一致`);
+	const content = readFileSync(resolve(pkgDir, file));
+	assert.equal(hash, '#sha256=' + createHash('sha256').update(content).digest('base64'), `${url} 的 sha256 不匹配`);
+	return content.toString('utf8');
+});
+assert.ok(requiredScripts.length > 0, '脚本头部缺少 @require');
 const shotDir = process.env.E2E_SCREENSHOT_DIR;
 if (shotDir) mkdirSync(shotDir, { recursive: true });
 
@@ -140,7 +156,8 @@ async function open(settings, path = '/') {
 	page.on('pageerror', (error) => errors.push(error.message));
 	await page.addInitScript(installMocks, settings ? { settings: JSON.stringify(settings) } : {});
 	await page.goto(origin + path);
-	// 脚本自带全部依赖，直接注入即可
+	// 和脚本管理器一样，先执行 @require 的依赖，再执行脚本
+	for (const content of requiredScripts) await page.addScriptTag({ content });
 	await page.addScriptTag({ content: userscript });
 	return { page, errors, close: () => context.close() };
 }

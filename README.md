@@ -13,7 +13,7 @@ npm run build
 
 构建产物是 `dist/captcha-autofill.user.js`。在脚本管理器里新建脚本并粘贴它的内容，或者把这个文件拖进浏览器安装。
 
-脚本自带全部依赖（界面用 React 编写，已打包在内），安装和运行都不需要从 CDN 加载任何东西。
+界面用 React 18 编写。React 和 React DOM 不打包进脚本，而是通过 `@require` 从 npmmirror 加载：脚本管理器在安装和更新时下载一次并缓存。地址固定了版本并附带 sha256 校验，CDN 上的文件被改动时脚本管理器会拒绝加载。
 
 ## 使用
 
@@ -62,7 +62,7 @@ npm run build
 
 - 原来 2800 行的单个 `app.vue` 拆成了按职责划分的 TypeScript 模块，去掉了重复的检测和规则匹配代码。
 - 界面从 Vue 改为 React。识别、检测、服务商等核心模块不依赖任何界面框架，React 只负责设置面板。
-- React 打包进脚本，不再通过 `@require` 从 unpkg 加载；产物因此经过压缩，约 280 KB。
+- React 18 通过 `@require` 从 npmmirror 加载（上游是从 unpkg 加载 Vue），地址固定版本并附带 sha256 校验；脚本本身约 67 KB。
 - 服务商由一张表驱动（`src/providers/presets.ts`），新增一家 OpenAI 兼容的服务商只需要加一条记录。
 - 增加了单元测试和在真实 Chrome 里跑的端到端测试。
 
